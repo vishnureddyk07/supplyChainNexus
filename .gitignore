@@ -1,9 +1,21 @@
 __pycache__/
 *.pyc
 .env
+.env.*
+.dist/
 venv/
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage/
+*.egg-info/
 
 node_modules/
+.next/
+.turbo/
+.parcel-cache/
 
 dist/
 build/
@@ -12,11 +24,10 @@ build/
 
 .idea/
 
+.DS_Store
+Thumbs.db
+
 *.log
-
-coverage/
-
-.pytest_cache/
 
 .neo4j/
 
