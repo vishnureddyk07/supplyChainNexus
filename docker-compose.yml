@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16
@@ -13,6 +11,24 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d supplychain"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  flyway:
+    image: flyway/flyway:10
+    container_name: flyway
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./database/postgres/migrations:/flyway/sql
+      - ./database/postgres/flyway.conf:/flyway/conf/flyway.conf:ro
+    command:
+      - -configFiles=/flyway/conf/flyway.conf
+      - migrate
 
   neo4j:
     image: neo4j:5
@@ -50,6 +66,38 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+  sensor-simulator:
+    build:
+      context: ./services/sensor-simulator
+    container_name: sensor-simulator
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    environment:
+      MQTT_BROKER: mosquitto
+      MQTT_PORT: 1883
+      EVENT_INTERVAL: 5
+      SCENARIO_MODE: normal
+  ingestion:
+    build:
+      context: ./services/ingestion
+      dockerfile: Dockerfile
+    container_name: ingestion
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    environment:
+      MQTT_BROKER: mosquitto
+      MQTT_PORT: 1883
 volumes:
   postgres_data:
   neo4j_data:
