@@ -22,27 +22,58 @@ Azure OpenAI
 ## Architecture
 
 External APIs / Mock Sources
-        │
-        ▼
- Ingestion Service
-        │
-        ▼
-      Kafka
-        │
- ┌──────┴────────┐
- ▼               ▼
+│
+▼
+Ingestion Service
+│
+▼
+Kafka
+│
+┌──────┴────────┐
+▼               ▼
 Neo4j         PostgreSQL
 (Graph)       (Risk Data)
- │               │
- └──────┬────────┘
-        ▼
-    Risk Engine
-        │
-        ▼
- GenAI Decision Engine
-        │
-        ▼
- FastAPI Backend
-        │
-        ▼
- React Dashboard
+│               │
+└──────┬────────┘
+▼
+Risk Engine
+│
+▼
+GenAI Decision Engine
+│
+▼
+FastAPI Backend
+│
+▼
+React Dashboard
+
+\## CI Status Checks
+
+
+
+GitHub Actions automatically runs on:
+
+
+
+\- Pushes to main
+
+\- Pull Requests
+
+
+
+The workflow validates:
+
+
+
+\- Backend lint
+
+\- Backend tests
+
+\- Docker image build
+
+\- Container health checks
+
+
+
+All pull requests should pass these checks before merging.
+
