@@ -1,0 +1,1 @@
+{"type":"record","name":"IotEvent","fields":[{"name":"temperature","type":"double"}],"additionalProperties":false}

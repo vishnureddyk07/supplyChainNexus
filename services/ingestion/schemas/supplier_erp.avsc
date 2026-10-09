@@ -1,0 +1,1 @@
+{"type":"record","name":"SupplierErpEvent","fields":[{"name":"supplier_id","type":"string"}],"additionalProperties":false}
