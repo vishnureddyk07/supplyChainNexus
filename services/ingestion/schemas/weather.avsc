@@ -1,0 +1,1 @@
+{"type":"record","name":"WeatherEvent","fields":[{"name":"name","type":"string"}],"additionalProperties":false}

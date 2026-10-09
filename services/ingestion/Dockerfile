@@ -2,10 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY services/ingestion/requirements.txt requirements.txt
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py .
+COPY services/ingestion services/ingestion
+COPY services/ingestion/schemas services/ingestion/schemas
 
-CMD ["python", "app.py"]
+CMD ["python", "-m", "services.ingestion.app"]

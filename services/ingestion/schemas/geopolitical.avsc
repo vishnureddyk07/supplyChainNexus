@@ -1,0 +1,1 @@
+{"type":"record","name":"GeopoliticalEvent","fields":[{"name":"title","type":"string"}],"additionalProperties":false}

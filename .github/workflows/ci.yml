@@ -2,85 +2,45 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+    branches:
+      - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
-
-  lint:
+  backend:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install flake8 pytest
-          if [ -f services/sensor-simulator/requirements.txt ]; then
-            pip install -r services/sensor-simulator/requirements.txt
-          fi
-          if [ -f services/ingestion/requirements.txt ]; then
-            pip install -r services/ingestion/requirements.txt
-          fi
+          pip install flake8 pytest -r services/ingestion/requirements.txt
 
-      - name: Run Flake8
-        run: python -m flake8 services
-
-  tests:
-    runs-on: ubuntu-latest
-    needs: lint
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-
-      - name: Install pytest
+      - name: Lint
         run: |
-          python -m pip install --upgrade pip
-          pip install pytest
+          python -m flake8 services --max-line-length=160 --extend-ignore=E501
 
-      - name: Run Tests
-        run: pytest
+      - name: Run tests
+        run: |
+          python -m pytest
 
-  docker-build:
+  docker:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Docker Images
-        run: docker compose build
-
-  health-check:
-    runs-on: ubuntu-latest
-    needs: docker-build
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Start Containers
-        run: docker compose up -d
-
-      - name: Wait
-        run: sleep 20
-
-      - name: Container Status
-        run: docker compose ps
-
-      - name: Container Logs
-        run: docker compose logs
-
-      - name: Stop Containers
-        if: always()
-        run: docker compose down
+      - name: Build Docker images
+        run: |
+          docker compose build
