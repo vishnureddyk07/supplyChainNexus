@@ -4,12 +4,22 @@ import os
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 
 from .engine import calculate_risk
 from .models import Disruption, RiskRequest, RiskResponse, Supplier, TelemetryRequest
 from .repository import Repository, now
 
 app = FastAPI(title="Supply Chain Risk Engine", version="1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 repository = Repository()
 
 
