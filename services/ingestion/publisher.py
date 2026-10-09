@@ -96,8 +96,12 @@ class InMemoryEventPublisher:
         self.events: list[IngestionEvent] = []
         self.dlq_events: list[dict[str, Any]] = []
         self.validator = validator or AvroSchemaValidator()
+        self._event_ids: set[str] = set()
 
     async def publish(self, event: IngestionEvent) -> None:
+        if event.event_id in self._event_ids:
+            metrics.increment("ingestion_events_duplicates_total")
+            return
         try:
             self.validator.validate(event.source, event.payload)
         except SchemaValidationError as exc:
@@ -105,6 +109,7 @@ class InMemoryEventPublisher:
             await self.publish_dlq(event, exc)
             return
         self.events.append(event)
+        self._event_ids.add(event.event_id)
         metrics.increment("ingestion_events_accepted_total")
 
     async def publish_dlq(self, event: IngestionEvent, error: Exception) -> None:

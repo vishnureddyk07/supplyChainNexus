@@ -1,7 +1,9 @@
 name: CI
 
 on:
-  push  docker compose build:
+  push:
+    branches:
+      - main
     branches:
       - main
   pull_request:

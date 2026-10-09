@@ -34,7 +34,7 @@ def generate_payload(supplier: str) -> dict[str, object]:
         humidity = random.uniform(90, 100)
 
     return {
-        "supplierId": supplier,
+        "supplier_id": supplier.strip().lower(),
         "temperature": round(temperature, 2),
         "humidity": round(humidity, 2),
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -45,14 +45,18 @@ def publish_sensor_events(
     client: mqtt.Client,
     suppliers: Iterable[str],
 ) -> None:
-    supplier_choices = tuple(suppliers)
+    supplier_choices = tuple(value.strip().lower() for value in suppliers if value.strip())
+    if not supplier_choices:
+        raise ValueError("at least one supplier is required")
 
     while True:
         supplier = random.choice(supplier_choices)
         payload = generate_payload(supplier)
         topic = f"suppliers/{supplier}/telemetry"
 
-        client.publish(topic, json.dumps(payload))
+        result = client.publish(topic, json.dumps(payload), qos=1)
+        if getattr(result, "rc", 0) != 0:
+            raise RuntimeError(f"MQTT publish failed with rc={result.rc}")
         print(topic)
         print(payload)
 

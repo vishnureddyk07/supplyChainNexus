@@ -20,6 +20,7 @@ services:
   flyway:
     image: flyway/flyway:10
     container_name: flyway
+    restart: "no"
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,6 +54,12 @@ services:
     restart: unless-stopped
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD-SHELL", "cub zk-ready localhost 2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     ports:
       - "2181:2181"
 
@@ -61,19 +68,23 @@ services:
     container_name: kafka
     restart: unless-stopped
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     ports:
       - "9092:9092"
+      - "29092:29092"
     healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092 >/dev/null 2>&1"]
       interval: 10s
       timeout: 10s
       retries: 12
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
   schema-registry:
@@ -82,12 +93,12 @@ services:
     restart: unless-stopped
     depends_on:
       kafka:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "8081:8081"
     environment:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8081/subjects >/dev/null"]
@@ -128,6 +139,11 @@ services:
     restart: unless-stopped
     expose:
       - "8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   ingestion:
     build:
@@ -141,13 +157,15 @@ services:
       kafka:
         condition: service_healthy
       supplier-erp-mock:
-        condition: service_started
+        condition: service_healthy
       schema-registry:
         condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
     environment:
       MQTT_BROKER: mosquitto
       MQTT_PORT: 1883
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SUPPLIER_ERP_URL: http://supplier-erp-mock:8000
       INGESTION_ENV: local
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
@@ -180,8 +198,11 @@ services:
         condition: service_healthy
       neo4j:
         condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/supplychain
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: ${NEO4J_USER:-neo4j}
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-password}
@@ -205,12 +226,20 @@ services:
         condition: service_healthy
       neo4j:
         condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
     environment:
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: ${NEO4J_USER:-neo4j}
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-password}
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/supplychain
     ports:
       - "8090:8090"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8090/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   genai-engine:
     build:
@@ -220,11 +249,16 @@ services:
     restart: unless-stopped
     depends_on:
       risk-engine:
-        condition: service_started
+        condition: service_healthy
     environment:
       RISK_ENGINE_URL: http://risk-engine:8090
     ports:
       - "8091:8091"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8091/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   backend-api:
     build:
@@ -234,13 +268,15 @@ services:
     restart: unless-stopped
     depends_on:
       risk-engine:
-        condition: service_started
+        condition: service_healthy
       genai-engine:
-        condition: service_started
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
     environment:
       RISK_ENGINE_URL: http://risk-engine:8090
       GENAI_ENGINE_URL: http://genai-engine:8091

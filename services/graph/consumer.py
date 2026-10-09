@@ -14,7 +14,7 @@ RAW_TOPICS = ("raw.shipping", "raw.weather", "raw.supplier_erp", "raw.iot", "raw
 
 
 class GraphConsumer:
-    def __init__(self, repository: GraphRepository, bootstrap_servers: str, group_id: str = "graph-service") -> None:
+    def __init__(self, repository: GraphRepository, bootstrap_servers: str, group_id: str = "graph-service", postgres_repository: Any = None) -> None:
         self.repository = repository
         self.bootstrap_servers = bootstrap_servers
         self.group_id = group_id
@@ -22,6 +22,7 @@ class GraphConsumer:
         self.consumer: Any = None
         self.producer: Any = None
         self._attempts: dict[tuple[str, int, int], int] = {}
+        self.postgres_repository = postgres_repository
 
     async def start(self) -> None:
         from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
@@ -36,18 +37,27 @@ class GraphConsumer:
         )
         self.producer = AIOKafkaProducer(bootstrap_servers=self.bootstrap_servers)
         await self.repository.ensure_schema()
+        if self.postgres_repository is not None:
+            await self.postgres_repository.ensure_schema()
         await self.consumer.start()
         await self.producer.start()
 
     async def process(self, message: Any) -> None:
         try:
-            event = message.value if isinstance(message.value, dict) else json.loads(message.value)
+            raw_event = message.value
+            if isinstance(raw_event, bytes):
+                raw_event = raw_event.decode("utf-8")
+            event = raw_event if isinstance(raw_event, dict) else json.loads(raw_event)
+            if not isinstance(event, dict):
+                raise ValueError("Kafka event must be a JSON object")
+            if self.postgres_repository is not None:
+                await self.postgres_repository.persist(event)
             await self.repository.upsert(map_event(event))
             await self.consumer.commit()
         except Exception as exc:
             key = (message.topic, message.partition, message.offset)
             attempts = self._attempts.get(key, 0) + 1
-            if attempts < self.max_retries:
+            if attempts < max(1, self.max_retries):
                 self._attempts[key] = attempts
                 LOGGER.warning("graph_event_retry", extra={"topic": message.topic, "error": str(exc), "attempt": attempts + 1})
                 await asyncio.sleep(min(2 ** attempts, 10))
@@ -87,3 +97,5 @@ class GraphConsumer:
             await self.consumer.stop()
         if self.producer is not None:
             await self.producer.stop()
+        if self.postgres_repository is not None:
+            await self.postgres_repository.close()

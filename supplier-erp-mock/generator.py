@@ -1,6 +1,6 @@
 from faker import Faker
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 import random
 
 fake = Faker()
@@ -8,7 +8,7 @@ fake = Faker()
 def generate_supplier():
 
     return {
-        "supplier_id": str(uuid4()),
+        "supplier_id": str(uuid4()).lower(),
         "supplier_name": fake.company(),
         "contact_email": fake.company_email(),
         "phone": fake.phone_number(),
@@ -23,5 +23,5 @@ def generate_supplier():
             "SUPPLIER_UPDATED",
             "SUPPLIER_DELETED"
         ]),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
