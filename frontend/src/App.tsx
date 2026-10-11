@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle, ArrowDownRight, ArrowUpRight, ChevronDown, Clock3,
   Database, Filter, Gauge, MapPin, RefreshCw, Search, ShieldAlert,
@@ -17,6 +17,18 @@ const levels: Level[] = ["low", "medium", "high", "critical"];
 async function get<T>(path: string): Promise<T> {
   const response = await fetch(`${API_URL}${path}`);
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  return response.json() as Promise<T>;
+}
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `${response.status} ${response.statusText}`);
+  }
   return response.json() as Promise<T>;
 }
 
@@ -39,6 +51,10 @@ export default function App() {
   const [level, setLevel] = useState<"all" | Level>("all");
   const [status, setStatus] = useState("all");
   const [lastUpdated, setLastUpdated] = useState<Date>();
+  const [showSupplierForm, setShowSupplierForm] = useState(false);
+  const [supplierForm, setSupplierForm] = useState({ supplier_id: "", name: "", country: "", status: "active" });
+  const [savingSupplier, setSavingSupplier] = useState(false);
+  const [supplierMessage, setSupplierMessage] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true); setError("");
@@ -53,6 +69,27 @@ export default function App() {
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { void loadData(); }, [loadData]);
+
+  const addSupplier = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSavingSupplier(true);
+    setSupplierMessage("");
+    try {
+      await post<Supplier>("/suppliers", {
+        supplier_id: supplierForm.supplier_id.trim(),
+        name: supplierForm.name.trim() || undefined,
+        country: supplierForm.country.trim() || undefined,
+        status: supplierForm.status,
+      });
+      setSupplierForm({ supplier_id: "", name: "", country: "", status: "active" });
+      setSupplierMessage("Supplier added successfully.");
+      await loadData();
+    } catch (caught) {
+      setSupplierMessage(caught instanceof Error ? `Could not add supplier: ${caught.message}` : "Could not add supplier.");
+    } finally {
+      setSavingSupplier(false);
+    }
+  };
 
   const rows = useMemo<SupplierRow[]>(() => suppliers.map((supplier) => ({
     ...supplier,
@@ -76,8 +113,9 @@ export default function App() {
       <div className="sidebar-footer"><div className="service-dot" /> Risk engine connected<div className="api-label">{API_URL}</div></div>
     </aside>
     <main className="content">
-      <header className="topbar"><div><p className="eyebrow">Supply chain intelligence</p><h1>Supplier overview</h1><p className="subtitle">Monitor supplier health and emerging exposure across your network.</p></div><button className="refresh" onClick={() => void loadData()} disabled={loading}><RefreshCw size={16} className={loading ? "spin" : ""} /> Refresh data</button></header>
+      <header className="topbar"><div><p className="eyebrow">Supply chain intelligence</p><h1>Supplier overview</h1><p className="subtitle">Monitor supplier health and emerging exposure across your network.</p></div><div className="topbar-actions"><button className="add-supplier" onClick={() => { setShowSupplierForm((shown) => !shown); setSupplierMessage(""); }}><Database size={16} /> {showSupplierForm ? "Close form" : "Add supplier"}</button><button className="refresh" onClick={() => void loadData()} disabled={loading}><RefreshCw size={16} className={loading ? "spin" : ""} /> Refresh data</button></div></header>
       {error && <div className="error-banner"><AlertTriangle size={18} /><div><strong>Could not load live data</strong><span>{error}. Check that the risk engine is running at {API_URL}.</span></div><button onClick={() => void loadData()} aria-label="Retry"><RefreshCw size={16} /></button></div>}
+      {showSupplierForm && <section className="panel supplier-form-panel"><div className="panel-heading"><div><h2>Add supplier</h2><p>Create a supplier record in the live risk engine.</p></div><Database className="accent-icon" /></div><form className="supplier-form" onSubmit={(event) => void addSupplier(event)}><label>Supplier ID<input required minLength={1} maxLength={128} value={supplierForm.supplier_id} onChange={(event) => setSupplierForm({ ...supplierForm, supplier_id: event.target.value })} placeholder="supplier-009" /></label><label>Supplier name<input value={supplierForm.name} onChange={(event) => setSupplierForm({ ...supplierForm, name: event.target.value })} placeholder="Example Manufacturing" /></label><label>Country<input value={supplierForm.country} onChange={(event) => setSupplierForm({ ...supplierForm, country: event.target.value })} placeholder="United States" /></label><label>Status<select value={supplierForm.status} onChange={(event) => setSupplierForm({ ...supplierForm, status: event.target.value })}><option value="active">Active</option><option value="inactive">Inactive</option><option value="pending">Pending</option></select></label><button className="submit-supplier" type="submit" disabled={savingSupplier}>{savingSupplier ? "Adding..." : "Add supplier"}</button></form>{supplierMessage && <p className={`supplier-message ${supplierMessage.startsWith("Could not") ? "error" : "success"}`} role="status">{supplierMessage}</p>}</section>}
       <section className="metrics">
         <Metric icon={<Database />} label="Total suppliers" value={loading ? "—" : rows.length.toString()} note={lastUpdated ? `Updated ${formatTime(lastUpdated.toISOString())}` : "Awaiting data"} />
         <Metric icon={<Gauge />} label="Average risk score" value={loading ? "—" : `${average}/100`} note={scored.length ? `${scored.length} assessed suppliers` : "No assessments yet"} />
