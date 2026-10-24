@@ -1,0 +1,7 @@
+-r requirements.txt
+
+lightgbm>=4.5,<5
+numpy>=1.26,<3
+scikit-learn>=1.5,<2
+shap>=0.46,<1
+skops>=0.11,<1

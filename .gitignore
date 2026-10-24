@@ -7,6 +7,11 @@ node_modules/
 
 dist/
 build/
+model-artifacts/
+*.skops
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
 
 .vscode/
 

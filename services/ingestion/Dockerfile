@@ -2,10 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY requirements.txt /app/requirements.txt
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
-COPY app.py .
+COPY supplychain_nexus /app/supplychain_nexus
+COPY services/ingestion /app/services/ingestion
 
-CMD ["python", "app.py"]
+ENV PYTHONPATH=/app
+
+CMD ["python", "-m", "services.ingestion.app"]

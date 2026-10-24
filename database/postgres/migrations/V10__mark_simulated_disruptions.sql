@@ -1,0 +1,2 @@
+ALTER TABLE disruption_log
+    ADD COLUMN simulated BOOLEAN NOT NULL DEFAULT FALSE;

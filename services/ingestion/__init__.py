@@ -1,0 +1,1 @@
+"""MQTT ingestion service."""
